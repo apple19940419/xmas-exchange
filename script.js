@@ -1,13 +1,13 @@
 // Firebase Configuration
 // IMPORTANT: Replace this with your own Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDg8i24ejTBsuMFIDKDS5hvcFU5miJ9ONk",
-  authDomain: "xmax-49e99.firebaseapp.com",
-  projectId: "xmax-49e99",
-  storageBucket: "xmax-49e99.firebasestorage.app",
-  messagingSenderId: "125712191258",
-  appId: "1:125712191258:web:13428dad7082d8bfe826a3",
-  measurementId: "G-QRJXP6BTNG"
+    apiKey: "AIzaSyDg8i24ejTBsuMFIDKDS5hvcFU5miJ9ONk",
+    authDomain: "xmax-49e99.firebaseapp.com",
+    projectId: "xmax-49e99",
+    storageBucket: "xmax-49e99.firebasestorage.app",
+    messagingSenderId: "125712191258",
+    appId: "1:125712191258:web:13428dad7082d8bfe826a3",
+    measurementId: "G-QRJXP6BTNG"
 };
 
 // Initialize Firebase
@@ -27,6 +27,12 @@ const db = firebase.database();
 
 const votesRef = db.ref('votes');
 const assignmentsRef = db.ref('assignments');
+const settingsRef = db.ref('settings');
+
+// Default Settings
+let voteLimitPerGift = 1; // Limit per gift per person
+let minGiftId = 1;
+let maxGiftId = 100;
 
 // DOM Elements
 const giftIdInput = document.getElementById('gift-id-input');
@@ -38,23 +44,107 @@ const assignmentResults = document.getElementById('assignment-results');
 const resultsList = document.getElementById('results-list');
 const resetBtn = document.getElementById('reset-btn');
 
+// Sorting Elements
+const sortKeySelect = document.getElementById('sort-key');
+const sortOrderSelect = document.getElementById('sort-order');
+
+// Admin Elements
+const maxVotesInput = document.getElementById('max-votes-input');
+const saveSettingsBtn = document.getElementById('save-settings-btn');
+const minIdInput = document.getElementById('min-id-input');
+const maxIdInput = document.getElementById('max-id-input');
+const saveRangeBtn = document.getElementById('save-range-btn');
+
+// --- Settings Logic ---
+
+// Listen for settings changes
+settingsRef.on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    if (data.limit) {
+        voteLimitPerGift = parseInt(data.limit);
+        maxVotesInput.value = voteLimitPerGift;
+    }
+    if (data.range) {
+        minGiftId = parseInt(data.range.min || 1);
+        maxGiftId = parseInt(data.range.max || 100);
+        minIdInput.value = minGiftId;
+        maxIdInput.value = maxGiftId;
+    }
+    // Handle Reset Signal
+    if (data.info === 'reset') {
+        localStorage.removeItem('xmas_voted_gifts');
+        // Refresh?
+    }
+});
+
+saveSettingsBtn.addEventListener('click', () => {
+    const val = parseInt(maxVotesInput.value);
+    if (val < 1) {
+        alert('上限至少為 1');
+        return;
+    }
+    settingsRef.update({
+        limit: val
+    });
+    alert('票數上限已儲存！');
+});
+
+saveRangeBtn.addEventListener('click', () => {
+    const min = parseInt(minIdInput.value);
+    const max = parseInt(maxIdInput.value);
+
+    if (isNaN(min) || isNaN(max) || min > max) {
+        alert('無效的範圍！');
+        return;
+    }
+
+    settingsRef.update({
+        range: { min, max }
+    });
+    alert('編號範圍已儲存！');
+});
+
 // --- Voting Logic ---
+
+// Variable to store current votes data for re-sorting
+let currentVotesData = {};
 
 // Listen for vote changes
 votesRef.on('value', (snapshot) => {
-    const data = snapshot.val() || {};
-    renderVotes(data);
+    currentVotesData = snapshot.val() || {};
+    renderVotes();
 });
 
-function renderVotes(votesData) {
+// Listen for sort changes
+sortKeySelect.addEventListener('change', renderVotes);
+sortOrderSelect.addEventListener('change', renderVotes);
+
+function renderVotes() {
+    const votesData = currentVotesData;
     voteResults.innerHTML = '';
 
-    // Convert object to array and sort by ID
+    // Sort logic
+    const sortKey = sortKeySelect.value; // 'id' or 'count'
+    const sortOrder = sortOrderSelect.value; // 'asc' or 'desc'
+
     const sortedGifts = Object.keys(votesData).sort((a, b) => {
-        // Extract number from "gift_X" if possible, or just string sort
-        const numA = parseInt(a.replace('gift_', ''));
-        const numB = parseInt(b.replace('gift_', ''));
-        return numA - numB;
+        const idA = parseInt(a.replace('gift_', ''));
+        const idB = parseInt(b.replace('gift_', ''));
+        const countA = votesData[a];
+        const countB = votesData[b];
+
+        let comparison = 0;
+        if (sortKey === 'id') {
+            comparison = idA - idB;
+        } else { // count
+            comparison = countA - countB;
+            // If counts are equal, fallback to ID sorting
+            if (comparison === 0) {
+                comparison = idA - idB;
+            }
+        }
+
+        return sortOrder === 'asc' ? comparison : -comparison;
     });
 
     if (sortedGifts.length === 0) {
@@ -62,39 +152,84 @@ function renderVotes(votesData) {
         return;
     }
 
+    // Get local voted gifts (Array of ID strings)
+    const votedGifts = JSON.parse(localStorage.getItem('xmas_voted_gifts') || '[]');
+
     sortedGifts.forEach(key => {
         const count = votesData[key];
         const giftNum = key.replace('gift_', '');
+        const idStr = giftNum.toString();
+
+        // Count how many times I voted for this gift
+        const myVotesForThis = votedGifts.filter(x => x === idStr).length;
+        const isVotedByMe = myVotesForThis > 0;
+
+        const badgeHtml = isVotedByMe ? '<div class="voted-badge">👎</div>' : '';
 
         const card = document.createElement('div');
         card.className = 'gift-card';
         card.innerHTML = `
+            ${badgeHtml}
             <div class="gift-id">#${giftNum}</div>
             <div class="vote-count"><span>${count}</span> 票</div>
         `;
+        // Optional: highlight my choices
+        if (isVotedByMe) {
+            card.style.borderColor = 'var(--primary-red)';
+            card.style.backgroundColor = '#fff0f0';
+        }
+
         voteResults.appendChild(card);
     });
 }
+// Removed updateVoteCountDisplay logic as it is not needed anymore
+
 
 voteBtn.addEventListener('click', () => {
-    const id = giftIdInput.value.trim();
-    if (!id) {
+    const id = parseInt(giftIdInput.value.trim()); // Parse as int for comparison
+    if (!id && id !== 0) {
         alert('請輸入禮物編號！');
         return;
     }
 
+    // Check Range
+    if (id < minGiftId || id > maxGiftId) {
+        alert(`禮物編號必須在 ${minGiftId} ~ ${maxGiftId} 之間！`);
+        return;
+    }
+
+    // Convert back to string for key usage if needed, but safe to use logic below
+    const idStr = id.toString();
+
     const giftKey = `gift_${id}`;
 
-    // Transaction to increment vote safely
+    // Check Local Limit Per Gift
+    const votedGifts = JSON.parse(localStorage.getItem('xmas_voted_gifts') || '[]');
+    const myVotesForThis = votedGifts.filter(x => x === idStr).length;
+
+    if (myVotesForThis >= voteLimitPerGift) {
+        alert(`你投給這個禮物的票數已經達到上限囉 (${voteLimitPerGift}票)！`);
+        return;
+    }
+
+    // Transaction to increment
     votesRef.child(giftKey).transaction((currentVotes) => {
         return (currentVotes || 0) + 1;
     }, (error, committed, snapshot) => {
         if (error) {
             console.error('Vote failed abnormally!', error);
-            alert('投票失敗，請檢查網路連線');
+            alert('投票失敗');
         } else {
-            // Animation or feedback could go here
-            giftIdInput.value = ''; // Clear input
+            // Success - Update Local State
+            votedGifts.push(idStr); // Push string explicitly
+            localStorage.setItem('xmas_voted_gifts', JSON.stringify(votedGifts));
+
+            // FIX: Force re-render immediately so the badge appears
+            // The global listener might fire before this callback or roughly same time,
+            // but calling it here guarantees we use the UPDATED localStorage.
+            renderVotes();
+
+            giftIdInput.value = '';
         }
     });
 });
@@ -174,6 +309,15 @@ function shuffleAndAssign(people, gifts) {
 
 resetBtn.addEventListener('click', () => {
     if (confirm('確定要重置所有投票和與分配結果嗎？此動作無法復原！')) {
-        db.ref('/').set(null); // Clear root, or clear specific paths
+        db.ref('/').set({
+            settings: {
+                limit: voteLimitPerGift,
+                range: { min: minGiftId, max: maxGiftId }, // Keep existing range
+                info: 'reset' // Signal to clear client cache
+            }
+        });
+        // Clear self immediately
+        localStorage.removeItem('xmas_voted_gifts');
+        window.location.reload(); // Reload to clear any stale state visuals
     }
 });
