@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖誕節交換禮物大會</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="snowflakes" aria-hidden="true">
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🎄 聖誕節交換禮物 🎄</h1>
+            <p class="subtitle">票選最爛禮物 & 隨機交換</p>
+        </header>
+
+        <section id="voting-section" class="card">
+            <h2>🗳️ 禮物投票</h2>
+            <p>請輸入禮物編號並投下一票！</p>
+            
+            <div class="input-group">
+                <input type="number" id="gift-id-input" placeholder="禮物編號 (例如: 1)" min="1">
+                <button id="vote-btn" class="btn primary">投票給它</button>
+            </div>
+
+            <h3>目前戰況</h3>
+            <div id="vote-results" class="grid-container">
+                <!-- Vote items will be injected here -->
+                <div class="loading">載入中...</div>
+            </div>
+        </section>
+
+        <section id="assignment-section" class="card">
+            <h2>🎁 禮物交換分配</h2>
+            <div class="input-group-vertical">
+                <label>參與者名單 (用換行分隔):</label>
+                <textarea id="participants-input" rows="5" placeholder="王小明&#10;李小芳&#10;陳大偉"></textarea>
+            </div>
+            
+            <button id="assign-btn" class="btn secondary">開始自動分配</button>
+            
+            <div id="assignment-results" class="results-container hidden">
+                <h3>分配結果</h3>
+                <ul id="results-list"></ul>
+            </div>
+        </section>
+
+        <section id="admin-section" class="card admin">
+            <h2>⚠️ 管理員專區</h2>
+            <button id="reset-btn" class="btn danger">重置所有資料</button>
+        </section>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
